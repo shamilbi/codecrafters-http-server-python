@@ -1,5 +1,6 @@
 import socket
 
+
 def read_lines(f_recv):
     'f_recv: read bytes (conn.recv, ...)'
     rest = b''
@@ -19,6 +20,7 @@ def read_lines(f_recv):
     if rest:
         yield rest.decode()
 
+
 def main():
     server_socket = socket.create_server(("localhost", 4221), reuse_port=True)
     while True:
@@ -29,8 +31,13 @@ def main():
                     # GET URL HTTP
                     l = line.split()
                     url = l[1]
-                    if url == '/':
-                        conn.sendall(b"HTTP/1.1 200 OK\r\n\r\n")
+                    if url.startswith('/echo/'):
+                        body = url[6:].encode()
+                        conn.send(b'HTTP/1.1 200 OK\r\n')
+                        conn.send(b'Content-Type: text/plain\r\n')
+                        conn.send(f'Content-Length: {len(body)}\r\n'.encode())
+                        conn.send(b'\r\n')
+                        conn.send(body)
                     else:
                         conn.sendall(b"HTTP/1.1 404 Not Found\r\n\r\n")
                 break
