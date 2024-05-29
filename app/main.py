@@ -31,7 +31,9 @@ def main():
                     # GET URL HTTP
                     l = line.split()
                     url = l[1]
-                    if url.startswith('/echo/'):
+                    if url == '/':
+                        conn.sendall(b"HTTP/1.1 200 OK\r\n\r\n")
+                    elif url.startswith('/echo/'):
                         body = url[6:].encode()
                         conn.send(b'HTTP/1.1 200 OK\r\n')
                         conn.send(b'Content-Type: text/plain\r\n')
