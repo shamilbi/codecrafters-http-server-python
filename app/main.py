@@ -112,7 +112,7 @@ def req_handler(conn, dir_):
             elif method == 'POST':
                 with open(file, 'wb') as fp:
                     fp.write(d['body'])
-                conn.send(b'HTTP/1.1 201 OK\r\n\r\n')
+                conn.send(b'HTTP/1.1 201 Created\r\n\r\n')
             else:
                 conn.sendall(b"HTTP/1.1 404 Not Found\r\n\r\n")
         else:
