@@ -2,6 +2,7 @@ import socket
 from threading import Thread
 import argparse
 from pathlib import Path
+import gzip
 
 RN = b'\r\n'
 
@@ -91,6 +92,7 @@ def req_handler(conn, dir_):
                 l = encoding.split(', ')
                 if 'gzip' in l:
                     conn.send(b'Content-Encoding: gzip\r\n')
+                    body = gzip.compress(body)
             conn.send(f'Content-Length: {len(body)}\r\n'.encode())
             conn.send(RN)
             conn.send(body)
