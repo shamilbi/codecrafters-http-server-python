@@ -1,5 +1,7 @@
 import socket
 from threading import Thread
+import argparse
+from pathlib import Path
 
 RN = b'\r\n'
 
@@ -72,7 +74,7 @@ def parse_request(conn):
     return d
 
 
-def req_handler(conn):
+def req_handler(conn, dir_):
     with conn:
         d = parse_request(conn)
         url = d['url']
@@ -92,16 +94,32 @@ def req_handler(conn):
             conn.send(f'Content-Length: {len(body)}\r\n'.encode())
             conn.send(RN)
             conn.send(body)
+        elif url.startswith('/files/'):
+            file = Path(dir_) / url[7:]
+            if file.exists():
+                conn.send(b'HTTP/1.1 200 OK\r\n')
+                conn.send(b'Content-Type: application/octet-stream\r\n')
+                with open(file, 'rb') as fp:
+                    body = fp.read()
+                conn.send(f'Content-Length: {len(body)}\r\n'.encode())
+                conn.send(RN)
+                conn.send(body)
+            else:
+                conn.sendall(b"HTTP/1.1 404 Not Found\r\n\r\n")
         else:
             conn.sendall(b"HTTP/1.1 404 Not Found\r\n\r\n")
 
 
 def main():
+    parser = argparse.ArgumentParser(description='socket server')
+    parser.add_argument('--directory', default='.', help='directory from which to get files')
+    args = parser.parse_args()  # args.directory
+
     server_socket = socket.create_server(("localhost", 4221), reuse_port=True)
     while True:
         conn, _ = server_socket.accept()    # wait for client
         #req_handler(conn)
-        Thread(target=req_handler, args=(conn,)).start()
+        Thread(target=req_handler, args=(conn, args.directory)).start()
 
 
 if __name__ == "__main__":
