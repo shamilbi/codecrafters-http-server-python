@@ -1,56 +1,73 @@
 import socket
 
-
-def read_lines(f_recv):
-    'f_recv: read bytes (conn.recv, ...)'
-    rest = b''
-    while True:
-        data = f_recv(1024)
-        if not data:
-            break
-        l = data.split(b'\r\n')
-        if rest:
-            l = [rest + l[0]] + l[1:]
-            rest = b''
-        if not data.endswith(b'\r\n'):
-            rest = l[-1]
-            l = l[:-1]
-        for i in l:
-            yield i.decode()
-    if rest:
-        yield rest.decode()
+RN = b'\r\n'
 
 
 def parse_request(conn):
     d = {}
-    headers = []
-    headersD = {}
+    headers = {}
     body = []
+
     target = 0  # request
-    for line in read_lines(conn.recv):
+    rest = b''
+    ind = 0
+    body_len = 0
+    body_count = 0
+    while data := conn.recv(1024):
+        if rest:
+            data = rest + data
+            rest = b''
+
         if target == 0:
+            ind = data.find(RN)
+            if ind == -1:
+                rest = data
+                continue
             # GET URL HTTP
+            line = data[:ind].decode()
+            data = data[ind + 2:]
             d['request'] = line
             l = line.split()
             d['url'] = l[1]
-            target = 1  # fields
-        elif target == 1:
-            if line:
+            target = 1  # headers
+
+        if target == 1:
+            if not data:
+                continue
+            while True:
+                ind = data.find(RN)
+                if ind == -1:
+                    rest = data
+                    break
+                if ind == 0:    # \r\n\r\n
+                    data = data[ind + 2:]
+                    target = 2
+                    break
+                line = data[:ind].decode()
+                data = data[ind + 2:]
                 l = line.split(':', maxsplit=1)
                 field = l[0]
                 value = l[1].strip()
-                headers.append((field, value))
-                headersD[field.lower()] = value
-                #print(f'field {field}: {value}')
-            else:
-                target = 2
-        elif target == 2:
-            if not line:
+                headers[field.lower()] = value
+            if target == 1:
+                continue
+
+        if target == 2:
+            if 'content-length' not in headers:
                 break
-            body.append(line)
+            body_len =int(headers['content-length'])
+            if not body_len:
+                break
+            target = 3
+
+        if target == 3:
+            body.append(data)
+            body_count += len(data)
+            if body_count >= body_len:
+                break
+
     d['headers'] = headers
-    d['headersD'] = headersD
-    d['body'] = body
+    d['body'] = b''.join(body).decode()
     return d
 
 
@@ -68,14 +85,14 @@ def main():
                 conn.send(b'HTTP/1.1 200 OK\r\n')
                 conn.send(b'Content-Type: text/plain\r\n')
                 conn.send(f'Content-Length: {len(body)}\r\n'.encode())
-                conn.send(b'\r\n')
+                conn.send(RN)
                 conn.send(body)
             elif url == '/user-agent':
-                body = d['headersD']['user-agent'].encode()
+                body = d['headers']['user-agent'].encode()
                 conn.send(b'HTTP/1.1 200 OK\r\n')
                 conn.send(b'Content-Type: text/plain\r\n')
                 conn.send(f'Content-Length: {len(body)}\r\n'.encode())
-                conn.send(b'\r\n')
+                conn.send(RN)
                 conn.send(body)
             else:
                 conn.sendall(b"HTTP/1.1 404 Not Found\r\n\r\n")
