@@ -88,7 +88,9 @@ def req_handler(conn, dir_):
             conn.send(b'HTTP/1.1 200 OK\r\n')
             conn.send(b'Content-Type: text/plain\r\n')
             if encoding := headers.get('accept-encoding', None):
-                conn.send(f'Content-Encoding: {encoding}\r\n'.encode())
+                l = encoding.split(', ')
+                if 'gzip' in l:
+                    conn.send(b'Content-Encoding: gzip\r\n')
             conn.send(f'Content-Length: {len(body)}\r\n'.encode())
             conn.send(RN)
             conn.send(body)
