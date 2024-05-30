@@ -31,6 +31,7 @@ def parse_request(conn):
             data = data[ind + 2:]
             d['request'] = line
             l = line.split()
+            d['method'] = l[0]  # GET, POST
             d['url'] = l[1]
             target = 1  # headers
 
@@ -70,7 +71,7 @@ def parse_request(conn):
                 break
 
     d['headers'] = headers
-    d['body'] = b''.join(body).decode()
+    d['body'] = b''.join(body)
     return d
 
 
@@ -78,6 +79,7 @@ def req_handler(conn, dir_):
     with conn:
         d = parse_request(conn)
         url = d['url']
+        method = d['method']
         if url == '/':
             conn.sendall(b"HTTP/1.1 200 OK\r\n\r\n")
         elif url.startswith('/echo/'):
@@ -96,14 +98,21 @@ def req_handler(conn, dir_):
             conn.send(body)
         elif url.startswith('/files/'):
             file = Path(dir_) / url[7:]
-            if file.exists():
-                conn.send(b'HTTP/1.1 200 OK\r\n')
-                conn.send(b'Content-Type: application/octet-stream\r\n')
-                with open(file, 'rb') as fp:
-                    body = fp.read()
-                conn.send(f'Content-Length: {len(body)}\r\n'.encode())
-                conn.send(RN)
-                conn.send(body)
+            if method == 'GET':
+                if file.exists():
+                    conn.send(b'HTTP/1.1 200 OK\r\n')
+                    conn.send(b'Content-Type: application/octet-stream\r\n')
+                    with open(file, 'rb') as fp:
+                        body = fp.read()
+                    conn.send(f'Content-Length: {len(body)}\r\n'.encode())
+                    conn.send(RN)
+                    conn.send(body)
+                else:
+                    conn.sendall(b"HTTP/1.1 404 Not Found\r\n\r\n")
+            elif method == 'POST':
+                with open(file, 'wb') as fp:
+                    fp.write(d['body'])
+                conn.send(b'HTTP/1.1 201 OK\r\n\r\n')
             else:
                 conn.sendall(b"HTTP/1.1 404 Not Found\r\n\r\n")
         else:
