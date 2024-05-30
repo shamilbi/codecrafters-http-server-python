@@ -1,4 +1,5 @@
 import socket
+from threading import Thread
 
 RN = b'\r\n'
 
@@ -71,31 +72,36 @@ def parse_request(conn):
     return d
 
 
+def req_handler(conn):
+    with conn:
+        d = parse_request(conn)
+        url = d['url']
+        if url == '/':
+            conn.sendall(b"HTTP/1.1 200 OK\r\n\r\n")
+        elif url.startswith('/echo/'):
+            body = url[6:].encode()
+            conn.send(b'HTTP/1.1 200 OK\r\n')
+            conn.send(b'Content-Type: text/plain\r\n')
+            conn.send(f'Content-Length: {len(body)}\r\n'.encode())
+            conn.send(RN)
+            conn.send(body)
+        elif url == '/user-agent':
+            body = d['headers']['user-agent'].encode()
+            conn.send(b'HTTP/1.1 200 OK\r\n')
+            conn.send(b'Content-Type: text/plain\r\n')
+            conn.send(f'Content-Length: {len(body)}\r\n'.encode())
+            conn.send(RN)
+            conn.send(body)
+        else:
+            conn.sendall(b"HTTP/1.1 404 Not Found\r\n\r\n")
+
+
 def main():
     server_socket = socket.create_server(("localhost", 4221), reuse_port=True)
     while True:
         conn, _ = server_socket.accept()    # wait for client
-        with conn:
-            d = parse_request(conn)
-            url = d['url']
-            if url == '/':
-                conn.sendall(b"HTTP/1.1 200 OK\r\n\r\n")
-            elif url.startswith('/echo/'):
-                body = url[6:].encode()
-                conn.send(b'HTTP/1.1 200 OK\r\n')
-                conn.send(b'Content-Type: text/plain\r\n')
-                conn.send(f'Content-Length: {len(body)}\r\n'.encode())
-                conn.send(RN)
-                conn.send(body)
-            elif url == '/user-agent':
-                body = d['headers']['user-agent'].encode()
-                conn.send(b'HTTP/1.1 200 OK\r\n')
-                conn.send(b'Content-Type: text/plain\r\n')
-                conn.send(f'Content-Length: {len(body)}\r\n'.encode())
-                conn.send(RN)
-                conn.send(body)
-            else:
-                conn.sendall(b"HTTP/1.1 404 Not Found\r\n\r\n")
+        #req_handler(conn)
+        Thread(target=req_handler, args=(conn,)).start()
 
 
 if __name__ == "__main__":
